@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电影关键字搜索</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh; color: #fff;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        header { text-align: center; padding: 40px 0 30px; }
+        header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(90deg, #f7971e, #ffd200);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        header p { color: #aaa; margin-top: 10px; font-size: 1.1em; }
+        .search-box { max-width: 700px; margin: 0 auto 30px; display: flex; gap: 10px; }
+        .search-box input {
+            flex: 1; padding: 15px 20px;
+            border: 2px solid rgba(255,255,255,0.1); border-radius: 12px;
+            background: rgba(255,255,255,0.08); color: #fff;
+            font-size: 1.1em; outline: none; transition: border-color 0.3s;
+        }
+        .search-box input:focus { border-color: #f7971e; }
+        .search-box input::placeholder { color: #888; }
+        .search-box button {
+            padding: 15px 35px; border: none; border-radius: 12px;
+            background: linear-gradient(90deg, #f7971e, #ffd200);
+            color: #000; font-size: 1.1em; font-weight: bold; cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .search-box button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(247,151,30,0.4);
+        }
+        .filter-tags {
+            display: flex; flex-wrap: wrap; gap: 10px;
+            justify-content: center; margin-bottom: 30px;
+        }
+        .filter-tags span {
+            padding: 8px 18px; border-radius: 20px;
+            background: rgba(255,255,255,0.08); cursor: pointer;
+            transition: all 0.3s; font-size: 0.9em; border: 1px solid transparent;
+        }
+        .filter-tags span:hover, .filter-tags span.active {
+            background: rgba(247,151,30,0.2);
+            border-color: #f7971e; color: #ffd200;
+        }
+        .result-info { text-align: center; color: #aaa; margin-bottom: 20px; font-size: 0.95em; }
+        .movie-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        .movie-card {
+            background: rgba(255,255,255,0.06); border-radius: 16px;
+            overflow: hidden; transition: transform 0.3s, box-shadow 0.3s;
+            border: 1px solid rgba(255,255,255,0.05); cursor: pointer;
+        }
+        .movie-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .movie-poster {
+            width: 100%; height: 200px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 3em; position: relative;
+        }
+        .movie-poster .year-badge {
+            position: absolute; top: 10px; right: 10px;
+            background: rgba(0,0,0,0.6); padding: 4px 12px;
+            border-radius: 8px; font-size: 0.8em;
+        }
+        .movie-poster .rating {
+            position: absolute; bottom: 10px; right: 10px;
+            background: rgba(0,0,0,0.6); padding: 4px 12px;
+            border-radius: 8px; font-size: 0.9em; color: #ffd200;
+        }
+        .movie-info { padding: 18px; }
+        .movie-info h3 { font-size: 1.15em; margin-bottom: 8px; }
+        .movie-info .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        .movie-info .tags span {
+            padding: 3px 10px; border-radius: 10px;
+            background: rgba(255,255,255,0.08); font-size: 0.8em; color: #ccc;
+        }
+        .movie-info .desc {
+            color: #aaa; font-size: 0.9em; line-height: 1.5;
+            display: -webkit-box; -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical; overflow: hidden;
+        }
+        .no-result { text-align: center; padding: 60px 20px; color: #888; }
+        .no-result .icon { font-size: 4em; margin-bottom: 20px; }
+        footer { text-align: center; padding: 30px 0; color: #555; font-size: 0.85em; }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85); z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+            overflow-y: auto; padding: 30px;
+        }
+        .modal-content {
+            background: linear-gradient(180deg, #1a1a3e, #0f0c29);
+            border-radius: 20px; max-width: 900px; width: 100%;
+            position: relative; animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+        .modal-close {
+            position: absolute; top: 15px; right: 15px;
+            width: 40px; height: 40px; border-radius: 50%;
+            background: rgba(255,255,255,0.1); border: none; color: #fff;
+            font-size: 1.5em; cursor: pointer; z-index: 10;
+            transition: background 0.3s;
+        }
+        .modal-close:hover { background: rgba(255,107,107,0.5); }
+        .modal-header {
+            padding: 40px 40px 20px; text-align: center;
+        }
+        .modal-title { font-size: 2.2em; margin-bottom: 10px; }
+        .modal-meta {
+            display: flex; justify-content: center; gap: 20px;
+            flex-wrap: wrap; color: #aaa;
+        }
+        .modal-meta span {
+            display: flex; align-items: center; gap: 6px;
+        }
+        .modal-rating {
+            color: #ffd200; font-size: 1.2em; font-weight: bold;
+        }
+        .modal-body { padding: 0 40px 40px; }
+        .modal-poster {
+            width: 100%; height: 350px; border-radius: 15px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 6em; margin-bottom: 25px;
+        }
+        .modal-genres { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .modal-genres span {
+            padding: 8px 16px; background: rgba(247,151,30,0.2);
+            border-radius: 20px; color: #ffd200;
+        }
+        .modal-section { margin-bottom: 25px; }
+        .modal-section-title {
+            font-size: 1.2em; margin-bottom: 12px; color: #f7971e;
+        }
+        .modal-desc {
+            line-height: 1.8; color: #ccc; font-size: 1em;
+        }
+        .cast-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 15px; }
+        .cast-item {
+            background: rgba(255,255,255,0.06); padding: 15px; border-radius: 10px;
+            border-left: 3px solid #f7971e;
+        }
+        .cast-name { font-weight: bold; margin-bottom: 5px; }
+        .cast-role { color: #aaa; font-size: 0.9em; }
+        .trailer-btn {
+            width: 100%; padding: 18px; border-radius: 12px;
+            background: linear-gradient(90deg, #f7971e, #ffd200);
+            color: #000; font-weight: bold; font-size: 1.1em; border: none;
+            cursor: pointer; transition: transform 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .trailer-btn:hover { transform: scale(1.02); }
+        @media (max-width: 600px) {
+            header h1 { font-size: 1.8em; }
+            .search-box { flex-direction: column; }
+            .search-box button { padding: 12px; }
+            .modal-content { margin: 10px; }
+            .modal-header, .modal-body { padding: 25px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>电影关键字搜索</h1>
+            <p>输入关键字，快速找到你感兴趣的电影</p>
+        </header>
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="输入电影名、演员、导演或类型关键字..." onkeydown="if(event.key==='Enter') searchMovies()">
+            <button onclick="searchMovies()">搜索</button>
+        </div>
+        <div class="filter-tags" id="filterTags"></div>
+        <div class="result-info" id="resultInfo"></div>
+        <div class="movie-grid" id="movieGrid"></div>
+        <footer>电影数据库共收录 <span id="totalCount">0</span> 部电影</footer>
+    </div>
+    <div id="modalOverlay" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeDetail()">×</button>
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle"></h2>
+                <div class="modal-meta">
+                    <span id="modalYear"></span>
+                    <span class="modal-rating" id="modalRating"></span>
+                    <span id="modalDirector"></span>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="modal-poster" id="modalPoster"></div>
+                <div class="modal-genres" id="modalGenres"></div>
+                <div class="modal-section">
+                    <h3 class="modal-section-title">剧情简介</h3>
+                    <p class="modal-desc" id="modalDesc"></p>
+                </div>
+                <div class="modal-section">
+                    <h3 class="modal-section-title">演员表</h3>
+                    <div class="cast-list" id="modalCast"></div>
+                </div>
+                <button class="trailer-btn" id="trailerBtn" onclick="openTrailer()">
+                    🔍 搜索预告片
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    var currentMovie = null;
+    var movieDB = [
+        {title:"肖申克的救赎",year:1994,rating:9.7,genre:["剧情","犯罪"],director:"弗兰克·德拉邦特",emoji:"🔒",trailer:"https://www.bilibili.com/video/BV1Xx411Z7Wz/",
+         cast:[{name:"蒂姆·罗宾斯",role:"安迪·杜弗伦"},{name:"摩根·弗里曼",role:"瑞德"},{name:"鲍勃·冈顿",role:"诺顿典狱长"},{name:"威廉·托马斯·桑德勒",role:"海伍德"},{name:"克兰西·布朗",role:"拜伦·哈德利"},{name:"吉尔·贝罗斯",role:"汤米·威廉姆斯"}],
+         desc:"安迪·杜弗伦是一位成功的银行家，他发现妻子与职业高尔夫球手有染后，在醉酒状态下枪杀了两人，因此被判终身监禁。在肖申克监狱，他结识了瑞德——一位能够走私货物的囚犯。安迪凭借专业知识帮助监狱长洗钱和处理税务，同时秘密策划越狱。在狱中度过20年后，安迪终于成功逃离，并带走了监狱长的赃款。这是一个关于希望、友谊与永不放弃信念的感人故事，展现了人类精神在最黑暗环境下的伟大光芒。"},
+        {title:"霸王别姬",year:1993,rating:9.6,genre:["剧情","爱情","历史"],director:"陈凯歌",emoji:"🎭",trailer:"https://www.bilibili.com/video/BV1x4411t71Q/",
+         cast:[{name:"张国荣",role:"程蝶衣"},{name:"巩俐",role:"菊仙"},{name:"张丰毅",role:"段小楼"},{name:"葛优",role:"袁世卿"},{name:"英达",role:"戏班老板"},{name:"吕齐",role:"关师傅"}],
+         desc:"程蝶衣和段小楼从小在戏班长大，两人合演的《霸王别姬》誉满京城。程蝶衣对京剧艺术的追求达到了疯狂的地步，甚至将自己活成了戏中的虞姬。而段小楼则更务实，他娶了妓女菊仙为妻。时代变迁，抗日战争、解放战争、文化大革命相继而来，三人的命运也随之跌宕起伏。程蝶衣对段小楼的深情、对艺术的执着，在历史洪流中被撕扯碾碎。这部影片通过京剧艺人的一生，展现了半个世纪的中国历史和人性的复杂。"},
+        {title:"阿甘正传",year:1994,rating:9.5,genre:["剧情","爱情"],director:"罗伯特·泽米吉斯",emoji:"🏃",trailer:"https://www.bilibili.com/video/BV1Fx411H7n5/",
+         cast:[{name:"汤姆·汉克斯",role:"阿甘"},{name:"罗宾·怀特",role:"珍妮"},{name:"加里·西尼斯",role:"丹中尉"},{name:"麦凯尔泰·威廉逊",role:"布巴"},{name:"莎莉·菲尔德",role:"阿甘妈妈"},{name:"海利·乔·奥斯蒙",role:"小阿甘"}],
+         desc:"阿甘是一个智商只有75的先天不足的孩子，但他的母亲告诉他，生命就像一盒巧克力，你永远不知道下一颗是什么滋味。阿甘凭借一双飞毛腿，先后成为橄榄球明星、越战英雄、乒乓球外交使者、捕虾船船长，最终成为亿万富翁。他见证了美国历史上的诸多重大事件：从约翰·肯尼迪总统遇刺，到越南战争，再到水门事件。尽管他智商不高，但他善良、诚实、守信，最终获得了成功和真爱。这是一个关于坚持、希望与善良的动人故事。"},
+        {title:"泰坦尼克号",year:1997,rating:9.4,genre:["剧情","爱情","灾难"],director:"詹姆斯·卡梅隆",emoji:"🚢",trailer:"https://www.bilibili.com/video/BV1Vx411t7M5/",
+         cast:[{name:"莱昂纳多·迪卡普里奥",role:"杰克·道森"},{name:"凯特·温丝莱特",role:"罗丝·德威特·布克特"},{name:"比利·赞恩",role:"卡尔·霍克利"},{name:"凯西·贝茨",role:"莫莉·布朗"},{name:"弗兰西丝·费舍",role:"露丝·德威特"},{name:"格洛丽亚·斯图尔特",role:"老年罗丝"}],
+         desc:"1912年，被誉为'永不沉没'的豪华邮轮泰坦尼克号开始了她的处女航，从英国南安普顿驶向美国纽约。贵族少女罗丝厌倦了上流社会的虚伪生活，正准备投海自尽时，被穷画家杰克救起。两人迅速坠入爱河，不顾阶级差异。然而，当泰坦尼克号在航行中撞上冰山开始沉没时，这场爱情也面临着生死考验。杰克把生存的机会让给了罗丝，自己沉入冰冷的大海。84年后，老年罗丝讲述了这段刻骨铭心的爱情故事。"},
+        {title:"千与千寻",year:2001,rating:9.4,genre:["动画","奇幻","冒险"],director:"宫崎骏",emoji:"⛩️",trailer:"https://www.bilibili.com/video/BV1Xx411Z7bM/",
+         cast:[{name:"柊瑠美",role:"千寻（配音）"},{name:"入野自由",role:"白龙（配音）"},{name:"夏木真理",role:"汤婆婆（配音）"},{name:"菅原文太",role:"锅炉爷爷（配音）"},{name:"玉井夕海",role:"小玲（配音）"},{name:"小林郁",role:"无脸男（配音）"}],
+         desc:"10岁的千寻与父母一起搬家，途中误入一个神秘的隧道，来到了一个奇异的世界。千寻的父母因为贪吃被变成了猪。为了拯救父母，千寻必须在汤婆婆的澡堂工作。在这个世界里，她结识了小白——一个神秘的少年。千寻在工作中逐渐成长，变得勇敢坚强。她帮助了无数神灵，最终找到了拯救父母和小白的方法。这是一部关于成长、友谊与爱的经典动画，展现了宫崎骏独特的想象力和人文关怀。"},
+        {title:"盗梦空间",year:2010,rating:9.3,genre:["科幻","悬疑","动作"],director:"克里斯托弗·诺兰",emoji:"🌀",trailer:"https://www.bilibili.com/video/BV1wx411Z7yC/",
+         cast:[{name:"莱昂纳多·迪卡普里奥",role:"柯布"},{name:"约瑟夫·戈登-莱维特",role:"亚瑟"},{name:"艾伦·佩吉",role:"阿里阿德涅"},{name:"汤姆·哈迪",role:"伊姆斯"},{name:"渡边谦",role:"斋藤"},{name:"玛丽昂·歌迪亚",role:"梅尔"}],
+         desc:"柯布是一位经验丰富的窃贼，他专门在别人的梦境中窃取有价值的想法。他的技能使他成为危险的企业间谍世界的抢手货，但这也让他付出了沉重代价，失去了他深爱的一切。为了回到家人身边，柯布接受了一项不可能的任务——他要做的不是窃取想法，而是植入想法。如果成功，这将是一次完美的犯罪。但无论多么周密的计划，都无法预见危险的敌人似乎总能预测他们的行动。这是一场在梦境与现实边缘展开的惊险冒险。"},
+        {title:"星际穿越",year:2014,rating:9.4,genre:["科幻","剧情","冒险"],director:"克里斯托弗·诺兰",emoji:"🌌",trailer:"https://www.bilibili.com/video/BV1bW411n7dM/",
+         cast:[{name:"马修·麦康纳",role:"库珀"},{name:"安妮·海瑟薇",role:"布兰德博士"},{name:"杰西卡·查斯坦",role:"墨菲"},{name:"迈克尔·凯恩",role:"布兰德教授"},{name:"麦肯吉·弗依",role:"小墨菲"},{name:"卡西·阿弗莱克",role:"汤姆"}],
+         desc:"未来地球环境恶化，粮食短缺，人类面临灭绝危机。前NASA宇航员库珀被选中执行一项穿越虫洞的任务，寻找适合人类居住的新家园。在穿越过程中，他发现时间和空间的奥秘，也与女儿墨菲建立了跨越时空的联系。这是一部关于科学、亲情、爱的史诗级科幻片，探索了人类在宇宙中的地位和意义。"},
+        {title:"流浪地球",year:2019,rating:8.5,genre:["科幻","冒险","灾难"],director:"郭帆",emoji:"🌍",trailer:"https://www.bilibili.com/video/BV1Xb411c757/",
+         cast:[{name:"吴京",role:"刘培强"},{name:"屈楚萧",role:"刘启"},{name:"李光洁",role:"王磊"},{name:"吴孟达",role:"韩子昂"},{name:"赵今麦",role:"韩朵朵"},{name:"隋凯",role:"蒂姆"}],
+         desc:"太阳即将膨胀吞噬地球，人类决定带着地球一起逃离太阳系。为此建造了上万台行星发动机，推动地球开始漫长的2500年流浪旅程。刘培强作为宇航员在空间站执行任务，儿子刘启和爷爷韩子昂在地面遭遇危机，父子两代人在地球危难时刻共同守护家园。"},
+        {title:"复仇者联盟4：终局之战",year:2019,rating:8.5,genre:["动作","科幻","冒险"],director:"安东尼·罗素、乔·罗素",emoji:"🛡️",trailer:"https://www.bilibili.com/video/BV1dJ411X73D/",
+         cast:[{name:"小罗伯特·唐尼",role:"钢铁侠/托尼·史塔克"},{name:"克里斯·埃文斯",role:"美国队长/史蒂夫·罗杰斯"},{name:"克里斯·海姆斯沃斯",role:"雷神/索尔"},{name:"斯嘉丽·约翰逊",role:"黑寡妇/娜塔莎"},{name:"马克·鲁法洛",role:"绿巨人/布鲁斯·班纳"},{name:"杰瑞米·雷纳",role:"鹰眼/克林特"}],
+         desc:"灭霸的响指让宇宙一半生命消失，复仇者们陷入空前绝望。五年后，他们找到逆转时间的方法，通过量子领域穿越回过去收集无限宝石。这是一场关于牺牲、救赎、英雄气概的最终之战，钢铁侠、美国队长等初代复仇者迎来他们的终极结局。"},
+        {title:"哪吒之魔童降世",year:2019,rating:8.5,genre:["动画","奇幻","喜剧"],director:"饺子",emoji:"🔥",trailer:"https://www.bilibili.com/video/BV1dW411m79j/",
+         cast:[{name:"吕艳婷",role:"哪吒（配音）"},{name:"囧森瑟夫",role:"敖丙（配音）"},{name:"瀚墨",role:"李靖（配音）"},{name:"绿绮",role:"殷夫人（配音）"},{name:"张珈铭",role:"太乙真人（配音）"},{name:"何禹祥",role:"申公豹（配音）"}],
+         desc:"元始天尊将灵珠和魔丸炼化，本应托生李靖之子的灵珠被申公豹调包，魔丸降生成为哪吒。哪吒背负着'魔童'的诅咒，注定在三岁时被天雷毁灭，但他不甘命运，喊出'我命由我不由天'，与天命抗争到底，最终拯救了陈塘关百姓。"},
+        {title:"我不是药神",year:2018,rating:9.0,genre:["剧情","喜剧"],director:"文牧野",emoji:"💊",trailer:"https://www.bilibili.com/video/BV1tW411e73z/",
+         cast:[{name:"徐峥",role:"程勇"},{name:"王传君",role:"吕受益"},{name:"周一围",role:"曹警官"},{name:"谭卓",role:"思慧"},{name:"章宇",role:"黄毛"},{name:"杨新鸣",role:"牧师刘牧师"}],
+         desc:"程勇是一位潦倒的保健品商贩，为了赚钱前往印度代购仿制药。他开始只是为了牟利，但在看到白血病患者的痛苦后，逐渐改变了想法，冒着风险为病患送药。这是一个关于小人物如何成为英雄的故事，反映了医疗制度的现实问题。"},
+        {title:"疯狂动物城",year:2016,rating:9.2,genre:["动画","喜剧","冒险"],director:"拜伦·霍华德、瑞奇·摩尔",emoji:"🐰",trailer:"https://www.bilibili.com/video/BV1ks411Z7XU/",
+         cast:[{name:"金妮弗·古德温",role:"朱迪（配音）"},{name:"杰森·贝特曼",role:"尼克（配音）"},{name:"伊德瑞斯·艾尔巴",role:"牛局长（配音）"},{name:"珍妮·斯蕾特",role:"羊副市长（配音）"},{name:"J·K·西蒙斯",role:"狮市长（配音）"},{name:"奥克塔维亚·斯宾瑟",role:"奥特顿夫人（配音）"}],
+         desc:"朱迪是一只梦想成为警察的小兔子，通过努力成为动物城第一个兔子警官。她与骗子狐狸尼克联手调查一起动物失踪案，逐渐发现背后隐藏的巨大阴谋。两人打破偏见，建立了深厚友谊，共同守护动物城的和平。"}
+    ];
+
+    function init() {
+        var totalEl = document.getElementById('totalCount');
+        if (totalEl) totalEl.textContent = movieDB.length;
+
+        var genres = [];
+        for (var i = 0; i < movieDB.length; i++) {
+            for (var j = 0; j < movieDB[i].genre.length; j++) {
+                if (genres.indexOf(movieDB[i].genre[j]) === -1) {
+                    genres.push(movieDB[i].genre[j]);
+                }
+            }
+        }
+        genres.sort();
+
+        var tagContainer = document.getElementById('filterTags');
+        tagContainer.innerHTML = '<span class="active" data-genre="all" onclick="filterByGenre(\'all\')">全部</span>';
+        for (var i = 0; i < genres.length; i++) {
+            tagContainer.innerHTML += '<span data-genre="' + genres[i] + '" onclick="filterByGenre(\'' + genres[i] + '\')">' + genres[i] + '</span>';
+        }
+
+        showAll();
+    }
+
+    var currentGenre = 'all';
+    var currentKeyword = '';
+
+    function filterByGenre(genre) {
+        currentGenre = genre;
+        var tags = document.querySelectorAll('.filter-tags span');
+        for (var i = 0; i < tags.length; i++) {
+            tags[i].classList.remove('active');
+        }
+        var target = document.querySelector('.filter-tags span[data-genre="' + genre + '"]');
+        if (target) target.classList.add('active');
+        doSearch();
+    }
+
+    function searchMovies() {
+        currentKeyword = document.getElementById('searchInput').value.trim();
+        currentGenre = 'all';
+        var tags = document.querySelectorAll('.filter-tags span');
+        for (var i = 0; i < tags.length; i++) {
+            tags[i].classList.remove('active');
+        }
+        var allBtn = document.querySelector('.filter-tags span[data-genre="all"]');
+        if (allBtn) allBtn.classList.add('active');
+        doSearch();
+    }
+
+    function doSearch() {
+        var results = [];
+        for (var i = 0; i < movieDB.length; i++) {
+            var m = movieDB[i];
+            if (currentGenre !== 'all' && m.genre.indexOf(currentGenre) === -1) continue;
+
+            if (currentKeyword) {
+                var kw = currentKeyword.toLowerCase();
+                var titleMatch = m.title.toLowerCase().indexOf(kw) !== -1;
+                var dirMatch = m.director.toLowerCase().indexOf(kw) !== -1;
+                var actorMatch = false;
+                if (m.cast) {
+                    for (var a = 0; a < m.cast.length; a++) {
+                        if (m.cast[a].name.toLowerCase().indexOf(kw) !== -1 || m.cast[a].role.toLowerCase().indexOf(kw) !== -1) {
+                            actorMatch = true; break;
+                        }
+                    }
+                }
+                var genreMatch = false;
+                for (var g = 0; g < m.genre.length; g++) {
+                    if (m.genre[g].toLowerCase().indexOf(kw) !== -1) { genreMatch = true; break; }
+                }
+                var descMatch = m.desc.toLowerCase().indexOf(kw) !== -1;
+                if (!titleMatch && !dirMatch && !actorMatch && !genreMatch && !descMatch) continue;
+            }
+            results.push(m);
+        }
+        renderResults(results);
+    }
+
+    function showAll() {
+        renderResults(movieDB);
+    }
+
+    function renderResults(results) {
+        var grid = document.getElementById('movieGrid');
+        var info = document.getElementById('resultInfo');
+
+        if (results.length === 0) {
+            info.textContent = currentKeyword ? '未找到与"' + currentKeyword + '"相关的电影' : '没有匹配的电影';
+            grid.innerHTML = '<div class="no-result" style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#888"><div style="font-size:4em;margin-bottom:20px">😕</div><p>没有找到匹配的电影，试试其他关键字吧！</p></div>';
+            return;
+        }
+
+        info.textContent = '找到 ' + results.length + ' 部电影' + (currentKeyword ? '（关键字："' + currentKeyword + '"）' : '');
+
+        var html = '';
+        for (var i = 0; i < results.length; i++) {
+            var m = results[i];
+            var yearColor = m.year >= 2020 ? '#ff6b6b' : m.year >= 2010 ? '#ffd93d' : '#6bcb77';
+            var bg1 = '#' + Math.floor(Math.random() * 128 + 64).toString(16) + Math.floor(Math.random() * 128 + 64).toString(16) + Math.floor(Math.random() * 128 + 64).toString(16);
+            var bg2 = '#' + Math.floor(Math.random() * 128 + 64).toString(16) + Math.floor(Math.random() * 128 + 64).toString(16) + Math.floor(Math.random() * 128 + 64).toString(16);
+
+            var titleText = m.title;
+            var dirText = m.director;
+            var actorText = m.cast ? m.cast[0].name + '、' + m.cast[1].name : (m.actors ? m.actors.slice(0, 2).join('、') : '');
+            var descText = m.desc;
+
+            if (currentKeyword) {
+                var kw = currentKeyword;
+                titleText = highlight(titleText, kw);
+                dirText = highlight(dirText, kw);
+                actorText = highlight(actorText, kw);
+                descText = highlight(descText, kw);
+            }
+
+            var genreTags = '';
+            for (var j = 0; j < m.genre.length; j++) {
+                var gText = m.genre[j];
+                if (currentKeyword && gText.toLowerCase().indexOf(currentKeyword.toLowerCase()) !== -1) {
+                    gText = highlight(gText, currentKeyword);
+                }
+                genreTags += '<span>' + gText + '</span>';
+            }
+
+            html += '<div class="movie-card" onclick="showDetail(' + i + ')">' +
+                '<div class="movie-poster" style="background:linear-gradient(135deg,' + bg1 + ',' + bg2 + ')">' +
+                (m.emoji || '🎬') +
+                '<span class="year-badge" style="background:' + yearColor + ';color:#000">' + m.year + '</span>' +
+                '<span class="rating">⭐ ' + m.rating + '</span>' +
+                '</div>' +
+                '<div class="movie-info">' +
+                '<h3>' + titleText + '</h3>' +
+                '<div class="tags">' + genreTags + '</div>' +
+                '<div style="color:#aaa;font-size:0.85em;margin-bottom:6px">🎬 ' + dirText + ' | 👥 ' + actorText + '</div>' +
+                '<div class="desc">' + descText + '</div>' +
+                '</div></div>';
+        }
+        grid.innerHTML = html;
+    }
+
+    function highlight(text, keyword) {
+        if (!keyword) return text;
+        var idx = text.toLowerCase().indexOf(keyword.toLowerCase());
+        if (idx === -1) return text;
+        return text.substring(0, idx) +
+            '<span style="color:#ffd200;font-weight:bold">' +
+            text.substring(idx, idx + keyword.length) +
+            '</span>' +
+            text.substring(idx + keyword.length);
+    }
+
+    function showDetail(index) {
+        var movie = movieDB[index];
+        currentMovie = movie;
+
+        document.getElementById('modalTitle').textContent = movie.title;
+        document.getElementById('modalYear').textContent = '📅 ' + movie.year + '年';
+        document.getElementById('modalRating').textContent = '⭐ ' + movie.rating + '分';
+        document.getElementById('modalDirector').textContent = '🎬 ' + movie.director;
+        document.getElementById('modalDesc').textContent = movie.desc;
+
+        var bg1 = '#' + Math.floor(Math.random() * 128 + 64).toString(16) + Math.floor(Math.random() * 128 + 64).toString(16) + Math.floor(Math.random() * 128 + 64).toString(16);
+        var bg2 = '#' + Math.floor(Math.random() * 128 + 64).toString(16) + Math.floor(Math.random() * 128 + 64).toString(16) + Math.floor(Math.random() * 128 + 64).toString(16);
+        document.getElementById('modalPoster').style.background = 'linear-gradient(135deg,' + bg1 + ',' + bg2 + ')';
+        document.getElementById('modalPoster').textContent = movie.emoji || '🎬';
+
+        var genresHtml = '';
+        for (var i = 0; i < movie.genre.length; i++) {
+            genresHtml += '<span>' + movie.genre[i] + '</span>';
+        }
+        document.getElementById('modalGenres').innerHTML = genresHtml;
+
+        var castHtml = '';
+        if (movie.cast) {
+            for (var j = 0; j < movie.cast.length; j++) {
+                var c = movie.cast[j];
+                castHtml += '<div class="cast-item"><div class="cast-name">' + c.name + '</div><div class="cast-role">' + c.role + '</div></div>';
+            }
+        }
+        document.getElementById('modalCast').innerHTML = castHtml;
+
+        document.getElementById('modalOverlay').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeDetail() {
+        document.getElementById('modalOverlay').style.display = 'none';
+        document.body.style.overflow = 'auto';
+        currentMovie = null;
+    }
+
+    function openTrailer() {
+        if (currentMovie) {
+            var searchQuery = encodeURIComponent(currentMovie.title + ' 预告片');
+            window.open('https://www.bing.com/search?q=' + searchQuery, '_blank');
+        }
+    }
+
+    document.getElementById('modalOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeDetail();
+    });
+
+    window.onload = init;
+    </script>
+</body>
+</html>
